@@ -15,6 +15,7 @@ import {
   Heart,
   Clock,
   Award,
+  AlertTriangle,
 } from "lucide-react";
 import favServices from "./services/favorites";
 
@@ -33,7 +34,8 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddingFav, setIsAddingFav] = useState(false);
   const [editingFav, setEditingFav] = useState(null);
-  const [sortBy, setSortBy] = useState("newest"); // newest, oldest, rating, title
+  const [sortBy, setSortBy] = useState("newest");
+  const [duplicateError, setDuplicateError] = useState("");
 
   const [newFav, setNewFav] = useState({
     title: "",
@@ -107,6 +109,21 @@ export default function App() {
 
   const addFavorite = () => {
     if (newFav.title && newFav.creator) {
+      // Fix the duplicate check logic
+      const existingItem = favorites.find(
+        (fav) =>
+          fav.title.toLowerCase() === newFav.title.toLowerCase() &&
+          fav.creator.toLowerCase() === newFav.creator.toLowerCase()
+      );
+
+      if (existingItem) {
+        console.log(newFav.title);
+        setDuplicateError(
+          `"${newFav.title}" by ${newFav.creator} already exists in your collection.`
+        );
+        return;
+      }
+
       const favorite = {
         id: Date.now(),
         title: newFav.title,
@@ -124,27 +141,30 @@ export default function App() {
         notes: newFav.notes,
         createdAt: new Date().toISOString(),
       };
-      favServices.create(favorite);
 
+      favServices.create(favorite);
       setFavorites([favorite, ...favorites]);
-      setNewFav({
-        title: "",
-        creator: "",
-        year: "",
-        description: "",
-        category: "Movies",
-        tags: "",
-        rating: 5,
-        status: "Want to Watch",
-        coverUrl: "",
-        notes: "",
-      });
-      setIsAddingFav(false);
+      resetForm();
     }
   };
 
   const updateFavorite = () => {
     if (editingFav && newFav.title && newFav.creator) {
+      // Check for duplicates when editing (excluding current item)
+      const existingItem = favorites.find(
+        (fav) =>
+          fav.id !== editingFav.id &&
+          fav.title.toLowerCase() === newFav.title.toLowerCase() &&
+          fav.creator.toLowerCase() === newFav.creator.toLowerCase()
+      );
+
+      if (existingItem) {
+        setDuplicateError(
+          `"${newFav.title}" by ${newFav.creator} already exists in your collection.`
+        );
+        return;
+      }
+
       const updatedFav = {
         ...editingFav,
         title: newFav.title,
@@ -161,24 +181,12 @@ export default function App() {
         coverUrl: newFav.coverUrl,
         notes: newFav.notes,
       };
-      favServices.update(editingFav.id, updatedFav);
 
+      favServices.update(editingFav.id, updatedFav);
       setFavorites(
         favorites.map((fav) => (fav.id === editingFav.id ? updatedFav : fav))
       );
-      setEditingFav(null);
-      setNewFav({
-        title: "",
-        creator: "",
-        year: "",
-        description: "",
-        category: "Movies",
-        tags: "",
-        rating: 5,
-        status: "Want to Watch",
-        coverUrl: "",
-        notes: "",
-      });
+      resetForm();
     }
   };
 
@@ -189,6 +197,7 @@ export default function App() {
 
   const startEdit = (favorite) => {
     setEditingFav(favorite);
+    setDuplicateError(""); // Clear any previous errors
     setNewFav({
       title: favorite.title,
       creator: favorite.creator,
@@ -203,9 +212,10 @@ export default function App() {
     });
   };
 
-  const cancelForm = () => {
+  const resetForm = () => {
     setIsAddingFav(false);
     setEditingFav(null);
+    setDuplicateError("");
     setNewFav({
       title: "",
       creator: "",
@@ -218,6 +228,10 @@ export default function App() {
       coverUrl: "",
       notes: "",
     });
+  };
+
+  const cancelForm = () => {
+    resetForm();
   };
 
   const getStatusColor = (status) => {
@@ -363,9 +377,9 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="bg-white">
+              <div>
+                <img src={icon} width={50} height={50} />
                 {/* <Heart className="text-white" size={24} /> */}
-                <img src={icon} alt="Icon" width="50" height="50" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
@@ -499,14 +513,25 @@ export default function App() {
                 </button>
               </div>
 
+              {duplicateError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+                  <AlertTriangle
+                    size={16}
+                    className="text-red-600 mt-0.5 flex-shrink-0"
+                  />
+                  <p className="text-red-700 text-sm">{duplicateError}</p>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <input
                   type="text"
                   placeholder="Title *"
                   value={newFav.title}
-                  onChange={(e) =>
-                    setNewFav({ ...newFav, title: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setNewFav({ ...newFav, title: e.target.value });
+                    setDuplicateError(""); // Clear error when user types
+                  }}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
 
@@ -514,9 +539,10 @@ export default function App() {
                   type="text"
                   placeholder="Creator/Author/Director *"
                   value={newFav.creator}
-                  onChange={(e) =>
-                    setNewFav({ ...newFav, creator: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setNewFav({ ...newFav, creator: e.target.value });
+                    setDuplicateError(""); // Clear error when user types
+                  }}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
 
